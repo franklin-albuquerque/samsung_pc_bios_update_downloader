@@ -1,64 +1,70 @@
-from os import system, name as system_name
-from re import findall
-from requests import get
-from subprocess import run, PIPE
-from time import sleep
+import os
+import re
+import requests
+import subprocess
+import time
 
 
-def download_bios_update(version, platform):
-    while True:
-        match system_name:
+class DownloadBiosUpdate:
+    def __init__(self):
+        self.bios_info = subprocess.run('wmic bios get smbiosbiosversion', stdout=subprocess.PIPE)
+        self.version = self.bios_info.stdout.decode('utf-8').split()[1]
+        self.platform = self.version.split('.')[0][3:]
+
+
+    def clear_screen(self):
+        match os.name:
             case 'nt':
-                system('cls')
+                os.system('cls')
             case 'posix':
-                system('clear')
+                os.system('clear')
 
-        print(f'Current BIOS version: {version}')
-        print(f'Platform ID: {platform}', end='\n\n')
 
-        try:
-            url = f"http://sbuservice.samsungmobile.com/BUWebServiceProc.asmx/GetContents?platformID={platform}&PartNumber=AAAA"
-            string = get(url).text
+    def download_bios_update(self):
+        while True:
+            self.clear_screen()
 
-            filepath_column = findall(r'<FilePathName>([a-zA-Z0-9_.]+)<\/FilePathName>', string)
-            executable = filepath_column[0]
+            print(f'Current BIOS version: {self.version}')
+            print(f'Platform ID: {self.platform}', end='\n\n')
 
-            version_column = findall(r'<Version>([a-zA-Z0-9]+)<\/Version>', string)
-            version = version_column[0]
+            try:
+                url = f"http://sbuservice.samsungmobile.com/BUWebServiceProc.asmx/GetContents?platformID={self.platform}&PartNumber=AAAA"
+                string = requests.get(url).text
 
-            file_url = f"http://sbuservice.samsungmobile.com/upload/BIOSUpdateItem/{executable}"
+                filepath_column = re.findall(r'<FilePathName>([a-zA-Z0-9_.]+)<\/FilePathName>', string)
+                executable = filepath_column[0]
 
-            if platform in file_url:
-                response = get(file_url, stream=True)
-                content_type = response.headers.get('content-type', '')
+                file_url = f"http://sbuservice.samsungmobile.com/upload/BIOSUpdateItem/{executable}"
 
-                if response.status_code == 200 and not 'text' in content_type:
-                    print(f'Downloading the latest bios update...')
-                    with open(f'{executable}', 'wb') as bios_update:
-                        for chunk in response.iter_content(chunk_size=4096):
-                            bios_update.write(chunk)
-                    print('Download completed successfully.')
-                    break
+                if self.platform in file_url:
+                    response = requests.get(file_url, stream=True)
+                    content_type = response.headers.get('content-type', '')
 
-            else:
-                print('Error! The server returned an incompatible version.')
+                    if response.status_code == 200 and not 'text' in content_type:
+                        print(f'Downloading the latest bios update...')
+                        with open(f'{executable}', 'wb') as bios_update:
+                            for chunk in response.iter_content(chunk_size=4096):
+                                bios_update.write(chunk)
+                        print('Download completed successfully.')
+                        break
 
-        except KeyError:
-            print('Error! The server did not return any results.')
-        except:
-            print('An error has occurred!')
+                else:
+                    print('Error! The server returned an incompatible version.')
 
-        print('Trying again...', end='\n\n')
-        sleep(0.75)
-    print('', end='\n')
+            except KeyError:
+                print('Error! The server did not return any results.')
+
+            except:
+                print('An error has occurred!')
+
+            print('Trying again...', end='\n\n')
+            time.sleep(1.15)
+        print('', end='\n')
 
 
 def main():
-    bios_info = run('wmic bios get smbiosbiosversion', stdout=PIPE)
-    version = bios_info.stdout.decode('utf-8').split()[1]
-    platform = version.split('.')[0][3:]
-
-    download_bios_update(version, platform)
+    bios_updater = DownloadBiosUpdate()
+    bios_updater.download_bios_update()
 
 
 if __name__ == '__main__':
